@@ -1,5 +1,0 @@
-# Frontend-specific requirements
-streamlit>=1.30.0
-streamlit-option-menu>=0.3.6
-streamlit-extras>=0.4.0
-requests>=2.31.0
