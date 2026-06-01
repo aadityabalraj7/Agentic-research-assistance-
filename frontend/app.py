@@ -18,12 +18,15 @@ st.set_page_config(
 )
 
 # API configuration
-API_BASE_URL = "http://localhost:8000/api"
+API_BASE_URL = "http://localhost:8001/api"
 
 def check_api_health() -> bool:
     """Check if the API is healthy."""
     try:
-        response = requests.get(f"{API_BASE_URL.replace('/api', '')}/health", timeout=5)
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
+        response = session.get(f"{API_BASE_URL.replace('/api', '')}/health", timeout=10)
         return response.status_code == 200
     except:
         return False
@@ -31,11 +34,14 @@ def check_api_health() -> bool:
 def send_chat_message(message: str, session_id: str = None) -> Dict[str, Any]:
     """Send a chat message to the API."""
     try:
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
         payload = {
             "message": message,
             "session_id": session_id
         }
-        response = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=30)
+        response = session.post(f"{API_BASE_URL}/chat", json=payload, timeout=120)
         if response.status_code == 200:
             return response.json()
         else:
@@ -46,13 +52,16 @@ def send_chat_message(message: str, session_id: str = None) -> Dict[str, Any]:
 def conduct_research(query: str, use_documents: bool = True, use_web: bool = True, session_id: str = None) -> Dict[str, Any]:
     """Conduct deep research via the API."""
     try:
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
         payload = {
             "query": query,
             "use_documents": use_documents,
             "use_web": use_web,
             "session_id": session_id
         }
-        response = requests.post(f"{API_BASE_URL}/research", json=payload, timeout=60)
+        response = session.post(f"{API_BASE_URL}/research", json=payload, timeout=300)
         if response.status_code == 200:
             return response.json()
         else:
@@ -63,8 +72,11 @@ def conduct_research(query: str, use_documents: bool = True, use_web: bool = Tru
 def upload_file(uploaded_file) -> Dict[str, Any]:
     """Upload a file to the API."""
     try:
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
         files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-        response = requests.post(f"{API_BASE_URL}/upload", files=files, timeout=30)
+        response = session.post(f"{API_BASE_URL}/upload", files=files, timeout=120)
         if response.status_code == 200:
             return response.json()
         else:
@@ -75,7 +87,10 @@ def upload_file(uploaded_file) -> Dict[str, Any]:
 def get_history(session_id: str) -> Dict[str, Any]:
     """Get chat history for a session."""
     try:
-        response = requests.get(f"{API_BASE_URL}/history/{session_id}", timeout=10)
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
+        response = session.get(f"{API_BASE_URL}/history/{session_id}", timeout=30)
         if response.status_code == 200:
             return response.json()
         else:
@@ -86,7 +101,10 @@ def get_history(session_id: str) -> Dict[str, Any]:
 def get_memory() -> Dict[str, Any]:
     """Get memory statistics."""
     try:
-        response = requests.get(f"{API_BASE_URL}/memory", timeout=10)
+        # Create session with proxy bypass
+        session = requests.Session()
+        session.trust_env = False
+        response = session.get(f"{API_BASE_URL}/memory", timeout=30)
         if response.status_code == 200:
             return response.json()
         else:
@@ -113,7 +131,7 @@ def main():
     api_healthy = check_api_health()
     if not api_healthy:
         st.error("⚠️ Backend API is not available. Please ensure the FastAPI server is running.")
-        st.info("Start the backend with: `uvicorn backend.main:app --reload`")
+        st.info("Start the backend with: `uvicorn backend.main:app --reload --port 8001`")
         return
     
     # Sidebar
@@ -218,8 +236,8 @@ def main():
                 else:
                     # Extract response
                     assistant_response = research_result.get("response", 
-                                                           research_result.get("report", 
-                                                                             "No response generated"))
+                                                            research_result.get("report", 
+                                                                            "No response generated"))
                     
                     # Add assistant message to chat
                     st.session_state.messages.append({
