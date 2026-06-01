@@ -3,8 +3,7 @@ LangChain tool for Retrieval-Augmented Generation (RAG) using ChromaDB.
 """
 
 from typing import List, Optional
-from langchain.tools import BaseTool
-from langchain.callbacks.manager import CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from backend.vectorstore.chroma_manager import chroma_manager
@@ -27,12 +26,7 @@ class RagTool(BaseTool):
     """
     args_schema: type[BaseModel] = RagToolInput
     
-    def _run(
-        self, 
-        query: str, 
-        max_results: int = 5,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> List[DocumentSource]:
+    def _run(self, query: str, max_results: int = 5) -> List[DocumentSource]:
         """Use the tool to search for relevant documents."""
         try:
             # Search ChromaDB for relevant documents
@@ -44,15 +38,6 @@ class RagTool(BaseTool):
                 chunk_id="error",
                 content_preview=f"Error searching documents: {str(e)}"
             )]
-    
-    async def _arun(
-        self, 
-        query: str, 
-        max_results: int = 5,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> List[DocumentSource]:
-        """Async version of the tool (not implemented)."""
-        raise NotImplementedError("Async version not implemented")
 
 
 # Global instance

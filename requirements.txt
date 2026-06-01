@@ -31,7 +31,6 @@ requests>=2.31.0
 
 # Export functionality
 reportlab>=4.0.4
-docx>=0.2.11
 markdown>=3.5
 
 # Optional: For enhanced UI

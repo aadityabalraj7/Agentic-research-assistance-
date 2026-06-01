@@ -9,15 +9,40 @@ import os
 import shutil
 from pathlib import Path
 
-from backend.services.chat_service import chat_service
-from backend.services.document_processor import document_processor
-from backend.memory.memory_store import memory_store
-from backend.models.schemas import ChatRequest, ChatResponse, ResearchRequest, ResearchResponse, UploadResponse
-
 router = APIRouter()
 
-# Pydantic models (imported from schemas for consistency)
-# ChatRequest, ChatResponse, ResearchRequest, ResearchResponse, UploadResponse are imported above
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    citations: List[dict] = []
+    session_id: str
+    agent_trace: List[dict] = []
+
+
+class ResearchRequest(BaseModel):
+    query: str
+    use_documents: bool = True
+    use_web: bool = True
+    session_id: Optional[str] = None
+
+
+class ResearchResponse(BaseModel):
+    report: str
+    citations: List[dict] = []
+    session_id: str
+    sources: List[dict] = []
+
+
+class UploadResponse(BaseModel):
+    message: str
+    filename: str
+    chunks_created: int
+
 
 # Document upload endpoint
 @router.post("/upload", response_model=UploadResponse)
@@ -37,13 +62,15 @@ async def upload_document(file: UploadFile = File(...)):
         # Read file content
         file_content = await file.read()
         
+        # Import here to avoid circular imports
+        from backend.services.document_processor import document_processor
+        from backend.vectorstore.chroma_manager import chroma_manager
+        from backend.models.schemas import DocumentChunk
+        
         # Process document
         chunks, metadata_list = document_processor.process_document(file_content, file.filename)
         
         # Add chunks to vector store
-        from backend.vectorstore.chroma_manager import chroma_manager
-        from backend.models.schemas import DocumentChunk
-        
         document_chunks = []
         for i, (chunk, metadata) in enumerate(zip(chunks, metadata_list)):
             doc_chunk = DocumentChunk(
@@ -64,20 +91,22 @@ async def upload_document(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Chat endpoint
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Handle chat requests with the research assistant."""
     try:
-        # Process message through chat service
+        from backend.services.chat_service import ChatService
+        
+        chat_service = ChatService()
         result = chat_service.process_message(
             message=request.message,
             session_id=request.session_id,
-            use_documents=True,  # Could be made configurable
-            use_web=True         # Could be made configurable
+            use_documents=True,
+            use_web=True
         )
         
-        # Convert to ChatResponse format
         return ChatResponse(
             response=result["response"],
             citations=result.get("citations", []),
@@ -88,12 +117,15 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Research endpoint
 @router.post("/research", response_model=ResearchResponse)
 async def conduct_research(request: ResearchRequest):
     """Conduct deep research on a topic."""
     try:
-        # Process research request through chat service
+        from backend.services.chat_service import ChatService
+        
+        chat_service = ChatService()
         result = chat_service.process_message(
             message=request.query,
             session_id=request.session_id,
@@ -101,7 +133,6 @@ async def conduct_research(request: ResearchRequest):
             use_web=request.use_web
         )
         
-        # Convert to ResearchResponse format
         return ResearchResponse(
             report=result.get("research_report", result.get("response", "")),
             citations=result.get("citations", []),
@@ -112,12 +143,14 @@ async def conduct_research(request: ResearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # History endpoint
 @router.get("/history/{session_id}")
 async def get_history(session_id: str):
     """Get chat history for a session."""
     try:
-        # Get chat session from memory store
+        from backend.memory.memory_store import memory_store
+        
         chat_session = memory_store.get_chat_session(session_id)
         if chat_session:
             return {
@@ -127,7 +160,7 @@ async def get_history(session_id: str):
                         "role": msg.role,
                         "content": msg.content,
                         "timestamp": msg.timestamp.isoformat() if hasattr(msg.timestamp, 'isoformat') else str(msg.timestamp),
-                        "citations": []  # Simplified
+                        "citations": []
                     }
                     for msg in chat_session.messages
                 ]
@@ -137,46 +170,40 @@ async def get_history(session_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Memory endpoint
 @router.get("/memory")
 async def get_memory():
     """Get memory statistics and contents."""
     try:
-        # Get memory statistics
+        from backend.memory.memory_store import memory_store
+        
         memory_entries = memory_store.get_memory_entries(limit=1000)
-        user_preferences = {}  # Would need to implement preference retrieval
-        chat_sessions = []     # Would need to implement session listing
         research_history = memory_store.get_research_history(limit=100)
         
         return {
-            "memories": [entry.dict() for entry in memory_entries],
-            "preferences": user_preferences,
-            "chat_sessions": chat_sessions,
-            "research_history": research_history,
+            "memories": [entry.model_dump() for entry in memory_entries],
             "counts": {
                 "memory_entries": len(memory_entries),
-                "user_preferences": len(user_preferences),
-                "chat_sessions": len(chat_sessions),
                 "research_history": len(research_history)
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Export endpoints
 @router.post("/export/pdf")
 async def export_pdf(content: dict):
     """Export research report as PDF."""
     try:
-        # Extract content and title
+        from backend.exports.export_manager import export_manager
+        
         report_content = content.get("content", "")
         title = content.get("title", "Research Report")
         
-        # Use export manager
-        from backend.exports.export_manager import export_manager
         pdf_bytes = export_manager.export_to_pdf(report_content, title)
         
-        # Return as downloadable file
         from fastapi.responses import Response
         return Response(
             content=pdf_bytes,
@@ -186,19 +213,18 @@ async def export_pdf(content: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/export/docx")
 async def export_docx(content: dict):
     """Export research report as DOCX."""
     try:
-        # Extract content and title
+        from backend.exports.export_manager import export_manager
+        
         report_content = content.get("content", "")
         title = content.get("title", "Research Report")
         
-        # Use export manager
-        from backend.exports.export_manager import export_manager
         docx_bytes = export_manager.export_to_docx(report_content, title)
         
-        # Return as downloadable file
         from fastapi.responses import Response
         return Response(
             content=docx_bytes,

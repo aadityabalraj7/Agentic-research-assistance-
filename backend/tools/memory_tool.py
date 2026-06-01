@@ -2,9 +2,8 @@
 LangChain tool for memory operations.
 """
 
-from typing import List, Optional
-from langchain.tools import BaseTool
-from langchain.callbacks.manager import CallbackManagerForToolRun
+from typing import Any, List, Optional
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -31,15 +30,7 @@ class MemoryTool(BaseTool):
     """
     args_schema: type[BaseModel] = MemoryToolInput
     
-    def _run(
-        self, 
-        operation: str,
-        key: Optional[str] = None,
-        value: Optional[Any] = None,
-        entry_type: Optional[str] = None,
-        limit: int = 10,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> str:
+    def _run(self, operation: str, key: Optional[str] = None, value: Optional[Any] = None, entry_type: Optional[str] = None, limit: int = 10) -> str:
         """Use the tool to perform memory operations."""
         try:
             if operation == "get_preference":
@@ -60,7 +51,7 @@ class MemoryTool(BaseTool):
                     return "No memory entries found"
                 
                 result = f"Found {len(entries)} memory entries:\n"
-                for entry in entries[:5]:  # Show first 5
+                for entry in entries[:5]:
                     result += f"- [{entry.type}] {entry.content[:100]}...\n"
                 return result
             
@@ -83,18 +74,6 @@ class MemoryTool(BaseTool):
                 
         except Exception as e:
             return f"Error performing memory operation: {str(e)}"
-    
-    async def _arun(
-        self, 
-        operation: str,
-        key: Optional[str] = None,
-        value: Optional[Any] = None,
-        entry_type: Optional[str] = None,
-        limit: int = 10,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> str:
-        """Async version of the tool (not implemented)."""
-        raise NotImplementedError("Async version not implemented")
 
 
 # Global instance

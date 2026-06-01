@@ -4,8 +4,7 @@ LangChain tool for web search using Tavily API.
 
 import os
 from typing import List, Optional
-from langchain.tools import BaseTool
-from langchain.callbacks.manager import CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 import requests
 
@@ -29,18 +28,10 @@ class WebSearchTool(BaseTool):
     args_schema: type[BaseModel] = WebSearchToolInput
     
     def __init__(self):
-        super().__init__()
         self.api_key = os.getenv("TAVILY_API_KEY")
-        if not self.api_key:
-            raise ValueError("TAVILY_API_KEY environment variable is required")
         self.base_url = "https://api.tavily.com/search"
     
-    def _run(
-        self, 
-        query: str, 
-        max_results: int = 5,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> List[DocumentSource]:
+    def _run(self, query: str, max_results: int = 5) -> List[DocumentSource]:
         """Use the tool to search the web."""
         try:
             if not self.api_key:
@@ -54,15 +45,10 @@ class WebSearchTool(BaseTool):
                 "api_key": self.api_key,
                 "query": query,
                 "max_results": max_results,
-                "include_domains": [],
-                "exclude_domains": [],
-                "search_depth": "basic",
-                "include_answer": False,
-                "include_raw_content": False,
-                "include_images": False
+                "search_depth": "basic"
             }
             
-            response = requests.post(self.base_url, json=payload)
+            response = requests.post(self.base_url, json=payload, timeout=10)
             response.raise_for_status()
             
             data = response.json()
@@ -84,16 +70,11 @@ class WebSearchTool(BaseTool):
                 chunk_id="error",
                 content_preview=f"Error searching web: {str(e)}"
             )]
-    
-    async def _arun(
-        self, 
-        query: str, 
-        max_results: int = 5,
-        run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> List[DocumentSource]:
-        """Async version of the tool (not implemented)."""
-        raise NotImplementedError("Async version not implemented")
 
 
 # Global instance
-web_search_tool = WebSearchTool()
+try:
+    web_search_tool = WebSearchTool()
+except ValueError:
+    # Create a placeholder if API key is missing
+    web_search_tool = None
